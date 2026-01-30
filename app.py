@@ -1,5 +1,5 @@
 import requests
-from bs4 import BeautifulSoup
+import csv
 from flask import Flask, jsonify
 from flask_cors import CORS
 
@@ -8,52 +8,38 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "API Tesouro Rodando! Acesse /precos"
+    return "API Tesouro CSV Online! Vá para /precos"
 
 @app.route('/precos')
 def extrair_precos():
-    # URL alvo
-    url = "https://github.com/ghostnetrn/bot-tesouro-direto/blob/main/rendimento_resgatar.csv"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
+    # URL do arquivo RAW (importante ser a versão raw.githubusercontent)
+    url_csv = "https://raw.githubusercontent.com"
     
     try:
-        response = requests.get(url, headers=headers)
-        # Se o site falhar, tentamos forçar a leitura
-        soup = BeautifulSoup(response.content, 'html.parser')
+        response = requests.get(url_csv)
+        response.encoding = 'utf-8' # Para não bugar os acentos
+        
+        if response.status_code != 200:
+            return jsonify({"erro": "Não foi possível carregar o CSV"}), 500
+        
+        # O CSV usa ";" como separador conforme você indicou
+        conteudo = response.text.strip().split('\n')
+        leitor = csv.reader(conteudo, delimiter=';')
         
         titulos = []
+        for linha in leitor:
+            if len(linha) >= 4:
+                titulos.append({
+                    "titulo": linha[0],        # Tesouro Prefixado 2027Juros Semestrais
+                    "taxa": linha[1],          # 13,66%
+                    "preco_resgate": linha[2], # R$ 978,45
+                    "vencimento": linha[3]     # 01/01/2027
+                })
         
-        # O site alvo usa tabelas padrão HTML. Vamos buscar todas.
-        tabelas = soup.find_all('table')
-        
-        for tabela in tabelas:
-            linhas = tabela.find_all('tr')
-            for linha in linhas:
-                cols = linha.find_all('td')
-                if len(cols) >= 3:
-                    # Limpando os textos de espaços e caracteres vazios
-                    nome = cols[0].get_text(strip=True)
-                    vencimento = cols[1].get_text(strip=True)
-                    # No Tesouro, geralmente a última ou penúltima coluna é o preço
-                    preco = cols[-1].get_text(strip=True) 
-                    
-                    # Filtro para ignorar cabeçalhos ou linhas vazias
-                    if "Título" not in nome and "Preço" not in nome:
-                        titulos.append({
-                            "titulo": nome,
-                            "vencimento": vencimento,
-                            "preco_resgate": preco
-                        })
-
-        if not titulos:
-            return jsonify({"mensagem": "Site acessado, mas nenhuma tabela foi encontrada. Verifique se o site mudou o layout."}), 404
-
         return jsonify(titulos)
 
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+        return jsonify({"erro": f"Erro ao processar CSV: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run()
