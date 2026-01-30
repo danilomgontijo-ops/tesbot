@@ -26,7 +26,7 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro_csv():
-    url = "https://ghostnetrn.github.io"
+    url = "https://ghostnetrn.github.io/bot-tesouro-direto/rendimento_resgatar.csv"
     try:
         # Adicionamos um cabeçalho de navegador para o GitHub Pages não bloquear
         headers = {'User-Agent': 'Mozilla/5.0'}
