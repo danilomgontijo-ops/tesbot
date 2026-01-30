@@ -14,7 +14,7 @@ def home():
 @app.route('/precos')
 def extrair_precos():
     # URL específica que você forneceu
-    url = "https://ghostnetrn.github.io"
+    url = "https://ghostnetrn.github.io/bot-tesouro-direto/"
     
     # Simula um navegador real para o site não bloquear o Render
     headers = {
