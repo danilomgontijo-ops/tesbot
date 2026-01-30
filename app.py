@@ -4,39 +4,55 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
+# Permite que sites externos (seu app web) acessem esta API
 CORS(app)
 
 @app.route('/')
 def home():
-    return "API Online! Acesse /precos para ver os dados."
+    return "API Tesouro Online! Vá para /precos para ver as cotações."
 
 @app.route('/precos')
 def extrair_precos():
+    # URL específica que você forneceu
     url = "https://ghostnetrn.github.io"
-
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    
+    # Simula um navegador real para o site não bloquear o Render
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    }
     
     try:
         response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        titulos = []
+        response.encoding = 'utf-8' # Garante que acentos não fiquem estranhos
         
-        # Pega as linhas da tabela (ajuste o seletor da tabela se necessário)
-        linhas = soup.find_all('tr')[1:] 
+        soup = BeautifulSoup(response.text, 'html.parser')
+        lista_titulos = []
+        
+        # O site usa uma tabela. Vamos buscar todas as linhas (tr)
+        tabela = soup.find('table')
+        if not tabela:
+            return jsonify({"erro": "Tabela de preços não encontrada no site"})
+
+        linhas = tabela.find_all('tr')
 
         for linha in linhas:
-            cols = linha.find_all('td')
-            if len(cols) >= 4: # Verifica se tem pelo menos 4 colunas (Título, Vencimento, Preço Compra, Preço Venda)
-                titulos.append({
-                    "titulo": cols[0].text.strip(),
-                    "vencimento": cols[1].text.strip(),
-                    # Vamos tentar pegar a terceira ou quarta coluna para o preço
-                    "preco_compra": cols[2].text.strip(),
-                    "preco_venda": cols[3].text.strip()
-                })
-        return jsonify(titulos)
+            colunas = linha.find_all('td')
+            
+            # Verificamos se a linha tem as colunas necessárias (Título, Vencimento, Taxa, Preço)
+            if len(colunas) >= 4:
+                dados = {
+                    "titulo": colunas[0].get_text(strip=True),
+                    "vencimento": colunas[1].get_text(strip=True),
+                    "taxa_rendimento": colunas[2].get_text(strip=True),
+                    "preco_resgate": colunas[3].get_text(strip=True) # Este é o valor de venda
+                }
+                lista_titulos.append(dados)
+
+        return jsonify(lista_titulos)
+
     except Exception as e:
-        return jsonify({"erro": str(e)})
+        return jsonify({"erro": f"Falha na extração: {str(e)}"})
 
 if __name__ == '__main__':
+    # O Render define a porta automaticamente, por isso não fixamos 5000
     app.run()
