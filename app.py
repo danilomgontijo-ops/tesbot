@@ -24,7 +24,7 @@ ESTILO_CSS = """
 
 def buscar_dados():
     # LINK RAW CORRETO (Este link entrega só o texto do CSV)
-    url_csv = "https://raw.githubusercontent.com"
+    url_csv = "https://ghostnetrn.github.io/bot-tesouro-direto/bot-tesouro-direto/rendimento_resgatar.csv"
     try:
         response = requests.get(url_csv)
         response.encoding = 'utf-8'
