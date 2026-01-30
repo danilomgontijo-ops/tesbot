@@ -26,34 +26,29 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro_csv():
-    url = "https://ghostnetrn.github.io/bot-tesouro-direto/rendimento_resgatar.csv"
+    url = "https://ghostnetrn.github.io"
     try:
-        # Adicionamos um cabeçalho de navegador para o GitHub Pages não bloquear
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers)
         response.encoding = 'utf-8'
-        
         if response.status_code != 200 or "<!DOCTYPE html>" in response.text:
             return []
-
         linhas = response.text.strip().split('\n')
         dados = []
         for linha in linhas:
-            cols = linha.split(';')
-            # Filtra apenas linhas válidas e pula o cabeçalho se houver
+            cols = [c.strip() for c in linha.split(';')]
             if len(cols) >= 4 and "Título" not in cols[0]:
                 dados.append({
-                    "titulo": cols[0].strip(),
-                    "taxa": cols[1].strip(),
-                    "preco": cols[2].strip(),
-                    "vencimento": cols[3].strip()
+                    "titulo": cols[0],
+                    "taxa": cols[1],
+                    "preco": cols[2],
+                    "vencimento": cols[3]
                 })
         return dados
     except:
         return []
 
 def buscar_ptax():
-    # Consulta a API oficial do Banco Central
     hoje = datetime.now().strftime('%m-%d-%Y')
     url = f"https://olinda.bcb.gov.br'{hoje}'&$format=json"
     try:
@@ -62,7 +57,6 @@ def buscar_ptax():
             ontem = (datetime.now() - timedelta(1)).strftime('%m-%d-%Y')
             url = f"https://olinda.bcb.gov.br'{ontem}'&$format=json"
             res = requests.get(url).json()
-        
         item = res['value'][0]
         return {"valor": f"R$ {item['cotacaoVenda']:.4f}", "data": item['dataHoraCotacao']}
     except:
@@ -72,13 +66,14 @@ def buscar_ptax():
 def index():
     dados_t = buscar_tesouro_csv()
     dados_d = buscar_ptax()
+    linhas_html = ""
+    for t in dados_t:
+        linhas_html += f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>"
     
-    linhas_html = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
-
     return render_template_string(f"""
     <!DOCTYPE html>
     <html lang="pt-br">
-    <head><meta charset="UTF-8"><title>Dashboard Financeiro</title>{ESTILO_CSS}</head>
+    <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
             <h1>Painel de Cotações</h1>
@@ -86,24 +81,21 @@ def index():
                 <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
                 <button class="tab-button" onclick="switchTab('dolar')">Dólar PTAX</button>
             </div>
-
             <div id="tesouro" class="content active">
                 <table>
                     <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
-                    <tbody>{linhas_html if dados_t else '<tr><td colspan="4">Erro ao carregar CSV. Verifique o link.</td></tr>'}</tbody>
+                    <tbody>{linhas_html if dados_t else '<tr><td colspan="4">Carregando dados...</td></tr>'}</tbody>
                 </table>
             </div>
-
             <div id="dolar" class="content">
                 <div class="ptax-box">
                     <h3>Dólar PTAX (Banco Central)</h3>
                     <div class="ptax-valor">{dados_d['valor']}</div>
-                    <p>Cotação oficial de venda para liquidação.</p>
-                    <small>Atualizado em: {dados_d['data']}</small>
+                    <p>Fonte Oficial: Banco Central do Brasil</p>
+                    <small>Ref: {dados_d['data']}</small>
                 </div>
             </div>
         </div>
-
         <script>
             function switchTab(id) {{
                 document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
@@ -115,72 +107,6 @@ def index():
     </body>
     </html>
     """)
-
-if __name__ == '__main__':
-    app.run()
-        titulos = []
-        
-        for linha in linhas:
-            cols = linha.split(';')
-            # Filtra apenas linhas que tenham a estrutura de dados (Título;Taxa;Preço;Vencimento)
-            if len(cols) >= 4 and "Título" not in cols[0]:
-                titulos.append({
-                    "titulo": cols[0].strip(),
-                    "taxa": cols[1].strip(),
-                    "preco": cols[2].strip(),
-                    "vencimento": cols[3].strip()
-                })
-        return titulos
-    except:
-        return []
-
-@app.route('/')
-def index():
-    dados = buscar_dados()
-    agora = datetime.now().strftime("%d/%m/%Y %H:%M")
-    
-    # Se não houver dados, mostra aviso
-    if not dados:
-        corpo_tabela = "<tr><td colspan='4' style='text-align:center'>Aguardando atualização dos dados do GitHub...</td></tr>"
-    else:
-        corpo_tabela = "".join([f"""
-            <tr>
-                <td>{t['titulo']}</td>
-                <td>{t['vencimento']}</td>
-                <td><span class='taxa'>{t['taxa']}</span></td>
-                <td class='preco'>{t['preco']}</td>
-            </tr>
-        """ for t in dados])
-
-    return render_template_string(f"""
-    <!DOCTYPE html>
-    <html lang="pt-br">
-    <head><meta charset="UTF-8"><title>Portal Tesouro Direto</title>{ESTILO_CSS}</head>
-    <body>
-        <div class="container">
-            <h1>📈 Cotações Tesouro Direto</h1>
-            <p class="atualizacao">Dados extraídos via API em: <strong>{agora}</strong></p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Título</th>
-                        <th>Vencimento</th>
-                        <th>Taxa</th>
-                        <th>Preço de Resgate</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {corpo_tabela}
-                </tbody>
-            </table>
-        </div>
-    </body>
-    </html>
-    """)
-
-@app.route('/api/precos')
-def api():
-    return jsonify(buscar_dados())
 
 if __name__ == '__main__':
     app.run()
