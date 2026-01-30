@@ -17,7 +17,7 @@ def home():
 @app.route('/precos')
 def extrair_precos():
     # URL do arquivo RAW correta
-    url_csv = "https://raw.githubusercontent.com"
+    url_csv = "https://ghostnetrn.github.io/bot-tesouro-direto/rendimento_resgatar.csv"
     
     try:
         response = requests.get(url_csv)
