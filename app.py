@@ -25,7 +25,7 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    url = "https://ghostnetrn.github.io"
+    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         res.encoding = 'utf-8'
