@@ -25,15 +25,100 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv" 
+    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
-        if res.status_code != 200: return []
+        if res.status_code != 200:
+            return []
         linhas = res.text.strip().split('\n')
-        return [{"titulo": c.strip(), "taxa": c.strip(), "preco": c.strip(), "vencimento": c.strip()} 
-                for l in linhas if len(c := l.split(';')) >= 4 and "Título" not in l]
-    except: return []
+        dados = []
+        for l in linhas:
+            c = [col.strip() for col in l.split(';')]
+            if len(c) >= 4 and "Título" not in c[0]:
+                dados.append({
+                    "titulo": c[0],
+                    "vencimento": c[3],
+                    "taxa": c[1],
+                    "preco": c[2]
+                })
+        return dados
+    except:
+        return []
+
+def buscar_historico_ptax():
+    hoje = datetime.now()
+    inicio = hoje - timedelta(days=365)
+    data_inicio = inicio.strftime('%m-%d-%Y')
+    data_fim = hoje.strftime('%m-%d-%Y')
+    
+    url = (f"https://olinda.bcb.gov.br"
+           f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
+           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
+    
+    try:
+        res = requests.get(url, timeout=15)
+        if res.status_code == 200:
+            return res.json().get('value', [])
+        return []
+    except:
+        return []
+
+@app.route('/')
+def index():
+    dados_t = buscar_tesouro()
+    dados_p = buscar_historico_ptax()
+    
+    linhas_t = ""
+    for t in dados_t:
+        linhas_t += f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>"
+    
+    linhas_p = ""
+    for p in dados_p:
+        data_iso = p['dataHoraCotacao'][:10]
+        data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
+        linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
+
+    return render_template_string(f"""
+    <!DOCTYPE html>
+    <html lang="pt-br">
+    <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
+    <body>
+        <div class="container">
+            <h1>Cotações e Histórico</h1>
+            <div class="nav-tabs">
+                <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
+                <button class="tab-button" onclick="switchTab('ptax')">Histórico PTAX (12 Meses)</button>
+            </div>
+            <div id="tesouro" class="content active">
+                <table>
+                    <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis.</td></tr>'}</tbody>
+                </table>
+            </div>
+            <div id="ptax" class="content">
+                <div class="scroll-table">
+                    <table>
+                        <thead><tr><th>Data</th><th>Compra</th><th>Venda</th></tr></thead>
+                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <script>
+            function switchTab(id) {{
+                document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+                event.currentTarget.classList.add('active');
+            }}
+        </script>
+    </body>
+    </html>
+    """)
+
+if __name__ == '__main__':
+    app.run()
 
 def buscar_historico_ptax():
     hoje = datetime.now()
