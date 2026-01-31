@@ -24,121 +24,65 @@ ESTILO_CSS = """
 </style>
 """
 
-def buscar_tesouro_csv():
-    # URL que você confirmou como correta
+def buscar_tesouro():
     url = "https://ghostnetrn.github.io"
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers)
-        response.encoding = 'utf-8'
-        
-        # Bloqueia se o GitHub retornar HTML de erro em vez de texto
-        if response.status_code != 200 or "<!DOCTYPE html>" in response.text:
-            return []
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        res.encoding = 'utf-8'
+        if res.status_code != 200 or "<!DOCTYPE html>" in res.text: return []
+        linhas = res.text.strip().split('\n')
+        return [{"titulo": c[0].strip(), "taxa": c[1].strip(), "preco": c[2].strip(), "vencimento": c[3].strip()} 
+                for l in linhas if len(c := l.split(';')) >= 4 and "Título" not in l]
+    except: return []
 
-        linhas = response.text.strip().split('\n')
-        dados = []
-        for linha in linhas:
-            cols = [c.strip() for c in linha.split(';')]
-            # Filtra linhas válidas e pula o cabeçalho
-            if len(cols) >= 4 and "Título" not in cols[0]:
-                dados.append({
-                    "titulo": cols[0],
-                    "taxa": cols[1],
-                    "preco": cols[2],
-                    "vencimento": cols[3]
-                })
-        return dados
+def buscar_dolar():
+    # Usando AwesomeAPI: mais estável e pega a última cotação automaticamente
+    try:
+        res = requests.get("https://economia.awesomeapi.com.br")
+        dados = res.json()['USDBRL']
+        return {"valor": f"R$ {float(dados['bid']):.4f}", "data": dados['create_date']}
     except:
-        return []
+        return {"valor": "Indisponível", "data": "--"}
 
 @app.route('/')
 def index():
-    dados_t = buscar_tesouro_csv()
-    # Monta as linhas da tabela do Tesouro
-    linhas_html = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
+    dados_t = buscar_tesouro()
+    dados_d = buscar_dolar()
+    linhas_t = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
     
     return render_template_string(f"""
     <!DOCTYPE html>
     <html lang="pt-br">
-    <head><meta charset="UTF-8"><title>Dashboard Financeiro</title>{ESTILO_CSS}</head>
+    <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
             <h1>Painel de Cotações</h1>
             <div class="nav-tabs">
                 <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
-                <button class="tab-button" onclick="switchTab('dolar')">Dólar PTAX</button>
+                <button class="tab-button" onclick="switchTab('dolar')">Dólar Hoje</button>
             </div>
-
             <div id="tesouro" class="content active">
                 <table>
                     <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
-                    <tbody>{linhas_html if dados_t else '<tr><td colspan="4">Carregando dados do Tesouro...</td></tr>'}</tbody>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Sem dados</td></tr>'}</tbody>
                 </table>
             </div>
-
             <div id="dolar" class="content">
                 <div class="ptax-box">
-                    <h3>Dólar PTAX (Venda)</h3>
-                    <div class="ptax-valor" id="ptax-valor">Carregando...</div>
-                    <p>Fonte Oficial: Banco Central do Brasil</p>
-                    <small id="ptax-data">Buscando última cotação disponível...</small>
+                    <h3>Dólar Comercial (Fechamento)</h3>
+                    <div class="ptax-valor">{dados_d['valor']}</div>
+                    <p>Cotação atualizada em tempo real.</p>
+                    <small>Ref: {dados_d['data']}</small>
                 </div>
             </div>
         </div>
-
         <script>
             function switchTab(id) {{
-                document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+                document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
                 document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-                document.getElementById(id).classList.add('active');
+                document.getElementById(id).style.display = 'block';
                 event.currentTarget.classList.add('active');
             }}
-
-            async function getPtax() {{
-                const elValor = document.getElementById('ptax-valor');
-                const elData = document.getElementById('ptax-data');
-                
-                const formatarData = (date) => {{
-                    let d = new Date(date),
-                        month = '' + (d.getMonth() + 1),
-                        day = '' + d.getDate(),
-                        year = d.getFullYear();
-                    if (month.length < 2) month = '0' + month;
-                    if (day.length < 2) day = '0' + day;
-                    return [month, day, year].join('-');
-                }};
-
-                let dataAlvo = new Date();
-                let tentativas = 0;
-                let sucesso = false;
-
-                while (tentativas < 5 && !sucesso) {{
-                    const dataStr = formatarData(dataAlvo);
-                    const url = `https://olinda.bcb.gov.br{{dataStr}}'&$format=json`;
-                    
-                    try {{
-                        const response = await fetch(url);
-                        if (!response.ok) throw new Error();
-                        const res = await response.json();
-                        
-                        if (res.value && res.value.length > 0) {{
-                            const item = res.value[res.value.length - 1];
-                            elValor.innerText = "R$ " + item.cotacaoVenda.toLocaleString('pt-BR', {{minimumFractionDigits: 4}});
-                            elData.innerText = "Cotação oficial de: " + item.dataHoraCotacao;
-                            sucesso = true;
-                        }} else {{
-                            dataAlvo.setDate(dataAlvo.getDate() - 1);
-                            tentativas++;
-                        }}
-                    }} catch (e) {{
-                        dataAlvo.setDate(dataAlvo.getDate() - 1);
-                        tentativas++;
-                    }}
-                }}
-                if (!sucesso) elValor.innerText = "Indisponível no momento";
-            }}
-            getPtax();
         </script>
     </body>
     </html>
