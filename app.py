@@ -26,7 +26,7 @@ ESTILO_CSS = """
 
 def buscar_tesouro():
     # URL oficial para o CSV de resgate do Tesouro Direto
-    url = "https://www.tesourodireto.com.br/documents/d/guest/rendimento-resgatar-csv?download=true"
+    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
