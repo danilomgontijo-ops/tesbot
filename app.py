@@ -25,17 +25,16 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    # URL RAW oficial que você indicou
+    # URL RAW oficial fornecido
     url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
         if res.status_code != 200: return []
         linhas = res.text.strip().split('\n')
-        return [{"titulo": c.strip(), "vencimento": c.strip(), "taxa": c.strip(), "preco": c.strip()} 
+        return [{"titulo": c[0].strip(), "vencimento": c[3].strip(), "taxa": c[1].strip(), "preco": c[2].strip()} 
                 for l in linhas if len(c := l.split(';')) >= 4 and "Título" not in l]
     except: return []
-
 
 def buscar_historico_dolar():
     # Usando a API do Bacen para buscar os últimos 360 dias (aprox. 12 meses)
