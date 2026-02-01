@@ -1,7 +1,7 @@
 import requests
 from flask import Flask, render_template_string
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -37,13 +37,14 @@ def buscar_tesouro():
     except: return []
 
 def buscar_historico_dolar():
-    # Usando a AwesomeAPI para buscar os últimos 360 dias (aprox. 12 meses)
-    # Fonte alternativa extremamente estável para o Render
-    url = "https://economia.awesomeapi.com.br/json/daily/USD-BRL/360"
+    # Usando a API do Bacen para buscar os últimos 360 dias (aprox. 12 meses)
     try:
+        data_final = datetime.now().strftime('%m-%d-%Y')
+        data_inicial = (datetime.now() - timedelta(days=360)).strftime('%m-%d-%Y')
+        url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@dataInicial='{data_inicial}'&@dataFinalCotacao='{data_final}'&$top=360&$format=json&$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao&$orderby=dataHoraCotacao desc"
         res = requests.get(url, timeout=15)
         if res.status_code == 200:
-            return res.json()
+            return res.json()['value']
         return []
     except: return []
 
@@ -58,8 +59,8 @@ def index():
     # Gerar linhas do Dólar
     linhas_d = ""
     for d in dados_d:
-        data_br = datetime.fromtimestamp(int(d['timestamp'])).strftime('%d/%m/%Y')
-        linhas_d += f"<tr><td>{data_br}</td><td>R$ {float(d['bid']):.4f}</td><td>R$ {float(d['ask']):.4f}</td></tr>"
+        data_br = datetime.strptime(d['dataHoraCotacao'], '%Y-%m-%d %H:%M:%S.%f').strftime('%d/%m/%Y')
+        linhas_d += f"<tr><td>{data_br}</td><td>R$ {d['cotacaoCompra']:.4f}</td><td>R$ {d['cotacaoVenda']:.4f}</td></tr>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
