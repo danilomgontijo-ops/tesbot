@@ -1,5 +1,5 @@
 import requests
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, render_template_string
 from flask_cors import CORS
 from datetime import datetime, timedelta
 
@@ -25,7 +25,7 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    url = "https://raw.githubusercontent.com"
+    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
@@ -35,7 +35,7 @@ def buscar_tesouro():
         dados = []
         for l in linhas:
             c = [col.strip() for col in l.split(';')]
-            if len(c) >= 4 and "Título" not in c[0]:
+            if len(c) >= 4 and "Título" not in c:
                 dados.append({
                     "titulo": c[0],
                     "vencimento": c[3],
@@ -47,8 +47,11 @@ def buscar_tesouro():
         return []
 
 def buscar_historico_ptax():
+    # Ajuste: Se hoje for fim de semana, a API do BC pode ser instável com a data atual
     hoje = datetime.now()
     inicio = hoje - timedelta(days=365)
+    
+    # Formato exigido pelo BC: MM-DD-AAAA
     data_inicio = inicio.strftime('%m-%d-%Y')
     data_fim = hoje.strftime('%m-%d-%Y')
     
@@ -56,12 +59,18 @@ def buscar_historico_ptax():
            f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
            f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
     
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
     try:
-        res = requests.get(url, timeout=15)
+        # Usamos o [Banco Central do Brasil](https://www.bcb.gov.br) como fonte
+        res = requests.get(url, headers=headers, timeout=15)
         if res.status_code == 200:
             return res.json().get('value', [])
         return []
-    except:
+    except Exception as e:
+        print(f"Erro ao buscar PTAX: {e}")
         return []
 
 @app.route('/')
@@ -75,9 +84,12 @@ def index():
     
     linhas_p = ""
     for p in dados_p:
-        data_iso = p['dataHoraCotacao'][:10]
-        data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
-        linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
+        try:
+            data_iso = p['dataHoraCotacao'][:10]
+            data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
+            linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
+        except:
+            continue
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -100,7 +112,7 @@ def index():
                 <div class="scroll-table">
                     <table>
                         <thead><tr><th>Data</th><th>Compra</th><th>Venda</th></tr></thead>
-                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis.</td></tr>'}</tbody>
+                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis no momento.</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
