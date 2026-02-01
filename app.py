@@ -1,7 +1,7 @@
 import requests
 from flask import Flask, render_template_string
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -25,94 +25,64 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
+    # URL RAW oficial que você indicou
     url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
-        if res.status_code != 200:
-            return []
+        if res.status_code != 200: return []
         linhas = res.text.strip().split('\n')
-        dados = []
-        for l in linhas:
-            c = [col.strip() for col in l.split(';')]
-            if len(c) >= 4 and "Título" not in c:
-                dados.append({
-                    "titulo": c[0],
-                    "vencimento": c[3],
-                    "taxa": c[1],
-                    "preco": c[2]
-                })
-        return dados
-    except:
-        return []
+        return [{"titulo": c.strip(), "vencimento": c.strip(), "taxa": c.strip(), "preco": c.strip()} 
+                for l in linhas if len(c := l.split(';')) >= 4 and "Título" not in l]
+    except: return []
 
-def buscar_historico_ptax():
-    # Ajuste: Se hoje for fim de semana, a API do BC pode ser instável com a data atual
-    hoje = datetime.now()
-    inicio = hoje - timedelta(days=365)
-    
-    # Formato exigido pelo BC: MM-DD-AAAA
-    data_inicio = inicio.strftime('%m-%d-%Y')
-    data_fim = hoje.strftime('%m-%d-%Y')
-    
-    url = (f"https://olinda.bcb.gov.br"
-           f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-    
+def buscar_historico_dolar():
+    # Usando a AwesomeAPI para buscar os últimos 360 dias (30 dias x 12 meses)
+    # Fonte alternativa extremamente estável para o Render
+    url = "https://economia.awesomeapi.com.br"
     try:
-        # Usamos o [Banco Central do Brasil](https://www.bcb.gov.br) como fonte
-        res = requests.get(url, headers=headers, timeout=15)
+        res = requests.get(url, timeout=15)
         if res.status_code == 200:
-            return res.json().get('value', [])
+            return res.json()
         return []
-    except Exception as e:
-        print(f"Erro ao buscar PTAX: {e}")
-        return []
+    except: return []
 
 @app.route('/')
 def index():
     dados_t = buscar_tesouro()
-    dados_p = buscar_historico_ptax()
+    dados_d = buscar_historico_dolar()
     
-    linhas_t = ""
-    for t in dados_t:
-        linhas_t += f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>"
+    # Gerar linhas do Tesouro
+    linhas_t = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
     
-    linhas_p = ""
-    for p in dados_p:
-        try:
-            data_iso = p['dataHoraCotacao'][:10]
-            data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
-            linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
-        except:
-            continue
+    # Gerar linhas do Dólar
+    linhas_d = ""
+    for d in dados_d:
+        data_br = datetime.fromtimestamp(int(d['timestamp'])).strftime('%d/%m/%Y')
+        linhas_d += f"<tr><td>{data_br}</td><td>R$ {float(d['bid']):.4f}</td><td>R$ {float(d['ask']):.4f}</td></tr>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
     <html lang="pt-br">
-    <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
+    <head><meta charset="UTF-8"><title>Dashboard Financeiro</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
             <h1>Cotações e Histórico</h1>
             <div class="nav-tabs">
                 <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
-                <button class="tab-button" onclick="switchTab('ptax')">Histórico PTAX (12 Meses)</button>
+                <button class="tab-button" onclick="switchTab('ptax')">Dólar (Últimos 12 Meses)</button>
             </div>
             <div id="tesouro" class="content active">
                 <table>
                     <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
-                    <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis.</td></tr>'}</tbody>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis no momento.</td></tr>'}</tbody>
                 </table>
             </div>
             <div id="ptax" class="content">
                 <div class="scroll-table">
                     <table>
                         <thead><tr><th>Data</th><th>Compra</th><th>Venda</th></tr></thead>
-                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis no momento.</td></tr>'}</tbody>
+                        <tbody>{linhas_d or '<tr><td colspan="3">Dados do Dólar indisponíveis no momento.</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
