@@ -25,21 +25,21 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    # URL RAW oficial que você indicou
-    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
+    # URL oficial para o CSV de resgate do Tesouro Direto
+    url = "https://www.tesourodireto.com.br/documents/d/guest/rendimento-resgatar-csv?download=true"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
         if res.status_code != 200: return []
         linhas = res.text.strip().split('\n')
-        return [{"titulo": c.strip(), "vencimento": c.strip(), "taxa": c.strip(), "preco": c.strip()} 
+        return [{"titulo": c[0].strip(), "vencimento": c[3].strip(), "taxa": c[1].strip(), "preco": c[2].strip()} 
                 for l in linhas if len(c := l.split(';')) >= 4 and "Título" not in l]
     except: return []
 
 def buscar_historico_dolar():
-    # Usando a AwesomeAPI para buscar os últimos 360 dias (30 dias x 12 meses)
+    # Usando a AwesomeAPI para buscar os últimos 360 dias (aprox. 12 meses)
     # Fonte alternativa extremamente estável para o Render
-    url = "https://economia.awesomeapi.com.br"
+    url = "https://economia.awesomeapi.com.br/json/daily/USD-BRL/360"
     try:
         res = requests.get(url, timeout=15)
         if res.status_code == 200:
