@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import openpyxl
 from io import BytesIO
 import re
+import os  # Added for port handling
 
 app = Flask(__name__)
 CORS(app)
@@ -193,4 +194,4 @@ def calcular_rendimento():
     return f"Rendimento de {titulo} de {data_inicio} a {data_fim}: {rendimento:.2f}%{nota_cupom}"
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
