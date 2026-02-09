@@ -194,4 +194,7 @@ def calcular_rendimento():
     return f"Rendimento de {titulo} de {data_inicio} a {data_fim}: {rendimento:.2f}%{nota_cupom}"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    import os
+    # O Fly e o Koyeb usam a porta da variável de ambiente PORT
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
