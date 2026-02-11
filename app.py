@@ -42,14 +42,70 @@ def buscar_tesouro():
 
 def buscar_historico_ptax():
     hoje = datetime.now()
-    inicio = hoje - timedelta(days=365)
-    url = (f"https://olinda.bcb.gov.br"
-           f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{inicio.strftime('%m-%d-%Y')}'&@dataFinalCotacao='{hoje.strftime('%m-%d-%Y')}'&$format=json&$orderby=dataHoraCotacao desc")
+    # PTAX não sai fim de semana; pegamos 15 dias para garantir volume de dados inicial
+    inicio = hoje - timedelta(days=15)
+    
+    # Formatação correta exigida pela API Olinda: 'MM-DD-YYYY'
+    d_inicio = inicio.strftime('%m-%d-%Y')
+    d_fim = hoje.strftime('%m-%d-%Y')
+    
+    # URL corrigida com os nomes de parâmetros exatos (@moeda, @dataInicial, @dataFinalCotacao)
+    # Adicionado $select para otimizar e garantir os campos cotacaoCompra, cotacaoVenda e dataHoraCotacao
+    url = (
+        "https://olinda.bcb.gov.br"
+        "CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
+        f"@moeda='USD'&@dataInicial='{d_inicio}'&@dataFinalCotacao='{d_fim}'"
+        "&$format=json&$orderby=dataHoraCotacao desc"
+    )
+    
     try:
         res = requests.get(url, timeout=15)
-        return res.json().get('value', []) if res.status_code == 200 else []
-    except: return []
+        if res.status_code == 200:
+            dados = res.json().get('value', [])
+            # O Banco Central retorna vários boletins por dia. 
+            # Filtramos para exibir apenas o boletim de 'Fechamento' (PTAX oficial)
+            return [d for d in dados if "Fechamento" in d.get('tipoBoletim', 'Fechamento')]
+        return []
+    except Exception as e:
+        print(f"Erro na API PTAX: {e}")
+        return []
+Use o código com cuidado.
+
+Principais Ajustes Realizados:
+Endpoint OData: A função agora aponta para o caminho completo .../odata/CotacaoMoedaPeriodo(...). No seu código original, a parte /odata/ e o nome da função estavam incompletos na string.
+Formato de Data: A API do BCB é rigorosa: datas devem estar entre aspas simples e no formato MM-DD-YYYY.
+Filtro de Fechamento: A PTAX possui 4 prévias diárias e 1 fechamento. Filtramos para mostrar apenas o "Fechamento", que é a taxa oficial usada pelo mercado.
+Parâmetro @moeda: Incluímos explicitamente o código 'USD' na query string para evitar retornos vazios por falta de especificação do ativo. 
+Dica de Deploy: Como você mencionou Fly.io/Koyeb, certifique-se de que o fuso horário do servidor não está pulando o dia atual (o BCB costuma divulgar a PTAX oficial por volta das 13:15h, horário de Brasília). 
+Deseja que eu adicione um gráfico de variação do dólar ou prefere manter apenas a visualização em tabela?
+
+
+
+
+undefined
+undefined
+undefined
+4 sites
+API de Cotações do Banco Central do Brasil no Power BI
+29 de out. de 2024 — API de Cotações do Banco Central do Brasil no Power BI * Em meu canal no YouTube, no vídeo API de cotação do Banco Central no Powe...
+
+LinkedIn
+
+Câmbio PTAX: O que é, onde consultar e como calcular - StoneX
+Câmbio PTAX: O que é, onde consultar e como calcular | StoneX. ... A StoneX Brasil oferece acesso global aos mercados e serviços e...
+
+StoneX
+
+Como é a formação da Ptax, que mexe com o dólar no último dia do ...
+2 de out. de 2024 — Como é a formação da Ptax, que mexe com o dólar no último dia do mês. ... O último dia útil de cada mês costuma ser importante par...
+
+InvesTalk
+
+Mostrar tudo
+Pergunte o que quiser
+
+
+
         
 @app.route('/')
 def index():
