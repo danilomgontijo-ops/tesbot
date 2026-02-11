@@ -38,43 +38,58 @@ def get_tesouro():
         return dados
     except: return []
 
-def get_dolar():
+def get_dolar_com_contingencia():
+    # TENTATIVA 1: AwesomeAPI (Padrão)
     try:
-        r = requests.get("https://economia.awesomeapi.com.br", timeout=10)
-        d = r.json()['USDBRL']
-        return {"venda": d['ask'], "data": d['create_date']}
-    except: return None
+        r = requests.get("https://economia.awesomeapi.com.br", timeout=5)
+        if r.status_code == 200:
+            d = r.json()['USDBRL']
+            return {"venda": float(d['ask']), "fonte": "AwesomeAPI (BCB)"}
+    except: pass
+
+    # TENTATIVA 2: Wise (Fallback estável para 2026)
+    try:
+        r = requests.get("https://api.wise.com", timeout=5)
+        if r.status_code == 200:
+            return {"venda": r.json()[0]['rate'], "fonte": "Contingência Wise"}
+    except: pass
+    
+    return None
 
 @app.route('/')
 def home():
     t_dados = get_tesouro()
-    d_dados = get_dolar()
+    d_dados = get_dolar_com_contingencia()
     
     linhas_t = "".join([f"<tr><td>{x['t']}</td><td>{x['v']}</td><td>{x['tx']}</td><td class='preco'>{x['p']}</td></tr>" for x in t_dados])
     
-    dolar_html = f"<h3>Dólar Comercial: R$ {float(d_dados['venda']):.4f}</h3><p>Atualizado em: {d_dados['data']}</p>" if d_dados else "Dólar indisponível"
+    dolar_html = f"""
+        <div class="dolar-card">
+            <h3>Dólar Comercial</h3>
+            <div class="dolar-valor">R$ {d_dados['venda']:.4f}</div>
+            <div class="status-fonte">Fonte: {d_dados['fonte']}</div>
+        </div>
+    """ if d_dados else "<div class='dolar-card'><h3>Dólar Temporariamente Indisponível</h3><p>Tente atualizar a página em instantes.</p></div>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><title>Financeiro</title>{ESTILO_CSS}</head>
+    <html lang="pt-br">
+    <head><meta charset="UTF-8"><title>Financeiro 2026</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
             <h1>Cotações Financeiras</h1>
-            <div class="nav">
-                <button onclick="tab('t')" id="bt">Tesouro</button>
-                <button onclick="tab('d')" id="bd">Dólar</button>
+            <div class="tabs">
+                <button onclick="tab('t')" id="bt" class="active">Tesouro Direto</button>
+                <button onclick="tab('d')" id="bd">Dólar Comercial</button>
             </div>
             <div id="t" class="content active-content">
-                <table>
-                    <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço</th></tr></thead>
-                    <tbody>{linhas_t or '<tr><td colspan="4">Erro ao carregar dados.</td></tr>'}</tbody>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:#f8f9fa"><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço</th></tr></thead>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Carregando...</td></tr>'}</tbody>
                 </table>
             </div>
-            <div id="d" class="content">
-                <div style="text-align:center; padding: 30px; background: #f9f9f9; border-radius: 10px;">
-                    {dolar_html}
-                </div>
+            <div id="d" style="display:none" class="content">
+                {dolar_html}
             </div>
         </div>
         <script>
@@ -84,7 +99,6 @@ def home():
                 document.getElementById('bt').className = id === 't' ? 'active' : '';
                 document.getElementById('bd').className = id === 'd' ? 'active' : '';
             }}
-            tab('t');
         </script>
     </body>
     </html>
