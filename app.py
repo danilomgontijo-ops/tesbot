@@ -43,23 +43,35 @@ def buscar_tesouro():
 def buscar_historico_ptax():
     hoje = datetime.now()
     inicio = hoje - timedelta(days=365)
+    data_inicio = inicio.strftime('%m-%d-%Y')
+    data_fim = hoje.strftime('%m-%d-%Y')
+    
     url = (f"https://olinda.bcb.gov.br"
            f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{inicio.strftime('%m-%d-%Y')}'&@dataFinalCotacao='{hoje.strftime('%m-%d-%Y')}'&$format=json&$orderby=dataHoraCotacao desc")
+           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
+    
     try:
         res = requests.get(url, timeout=15)
-        return res.json().get('value', []) if res.status_code == 200 else []
-    except: return []
-        
+        if res.status_code == 200:
+            return res.json().get('value', [])
+        return []
+    except:
+        return []
+
 @app.route('/')
 def index():
     dados_t = buscar_tesouro()
     dados_p = buscar_historico_ptax()
-    linhas_t = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
+    
+    linhas_t = ""
+    for t in dados_t:
+        linhas_t += f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>"
+    
     linhas_p = ""
     for p in dados_p:
-        dt = datetime.strptime(p['dataHoraCotacao'][:10], '%Y-%m-%d').strftime('%d/%m/%Y')
-        linhas_p += f"<tr><td>{dt}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
+        data_iso = p['dataHoraCotacao'][:10]
+        data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
+        linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -70,19 +82,19 @@ def index():
             <h1>Cotações e Histórico</h1>
             <div class="nav-tabs">
                 <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
-                <button class="tab-button" onclick="switchTab('ptax')">Histórico PTAX</button>
+                <button class="tab-button" onclick="switchTab('ptax')">Histórico PTAX (12 Meses)</button>
             </div>
             <div id="tesouro" class="content active">
                 <table>
                     <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
-                    <tbody>{linhas_t or '<tr><td colspan="4">Sem dados.</td></tr>'}</tbody>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis.</td></tr>'}</tbody>
                 </table>
             </div>
             <div id="ptax" class="content">
                 <div class="scroll-table">
                     <table>
                         <thead><tr><th>Data</th><th>Compra</th><th>Venda</th></tr></thead>
-                        <tbody>{linhas_p or '<tr><td colspan="3">Sem dados.</td></tr>'}</tbody>
+                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis.</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
