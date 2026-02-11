@@ -50,7 +50,7 @@ def buscar_historico_ptax():
         res = requests.get(url, timeout=15)
         return res.json().get('value', []) if res.status_code == 200 else []
     except: return []
-
+        
 @app.route('/')
 def index():
     dados_t = buscar_tesouro()
