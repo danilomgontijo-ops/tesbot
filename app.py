@@ -26,8 +26,8 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    url = "https://raw.githubusercontent.com"
-     try:
+    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
+    try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
         if res.status_code != 200: return []
@@ -43,20 +43,13 @@ def buscar_tesouro():
 def buscar_historico_ptax():
     hoje = datetime.now()
     inicio = hoje - timedelta(days=365)
-    data_inicio = inicio.strftime('%m-%d-%Y')
-    data_fim = hoje.strftime('%m-%d-%Y')
-    
     url = (f"https://olinda.bcb.gov.br"
            f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
-    
+           f"@dataInicial='{inicio.strftime('%m-%d-%Y')}'&@dataFinalCotacao='{hoje.strftime('%m-%d-%Y')}'&$format=json&$orderby=dataHoraCotacao desc")
     try:
         res = requests.get(url, timeout=15)
-        if res.status_code == 200:
-            return res.json().get('value', [])
-        return []
-    except:
-        return []
+        return res.json().get('value', []) if res.status_code == 200 else []
+    except: return []
 
 @app.route('/')
 def index():
