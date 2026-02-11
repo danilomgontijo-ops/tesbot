@@ -1,105 +1,96 @@
-import requests
 import os
-from flask import Flask, jsonify, render_template_string
+import requests
+from flask import Flask, render_template_string
 from flask_cors import CORS
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
 
+# Estilo visual simplificado para evitar erros de renderização
 ESTILO_CSS = """
 <style>
-    body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
-    .container { max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+    .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
     h1 { color: #1a73e8; text-align: center; }
-    .nav-tabs { display: flex; justify-content: center; margin-bottom: 20px; border-bottom: 2px solid #eee; }
-    .tab-button { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 1.1em; color: #5f6368; border-bottom: 3px solid transparent; }
-    .tab-button.active { color: #1a73e8; border-bottom: 3px solid #1a73e8; font-weight: bold; }
+    .nav { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    button { padding: 10px; cursor: pointer; border: 1px solid #ddd; background: #eee; border-radius: 5px; }
+    button.active { background: #1a73e8; color: white; border-color: #1a73e8; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+    .preco { color: green; font-weight: bold; }
     .content { display: none; }
-    .content.active { display: block; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
-    th { background: #f8f9fa; padding: 10px; text-align: left; border-bottom: 2px solid #eee; }
-    td { padding: 10px; border-bottom: 1px solid #eee; }
-    .preco { color: #188038; font-weight: bold; }
-    .scroll-table { max-height: 500px; overflow-y: auto; border: 1px solid #eee; margin-top: 20px; border-radius: 8px; }
+    .active-content { display: block; }
 </style>
 """
 
-def buscar_tesouro():
-    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
+def get_tesouro():
+    url = "https://raw.githubusercontent.com"
     try:
-        res = requests.get(url, timeout=10)
-        res.encoding = 'utf-8'
-        if res.status_code != 200: return []
-        linhas = res.text.strip().split('\n')
+        r = requests.get(url, timeout=10)
+        r.encoding = 'utf-8'
+        if r.status_code != 200: return []
+        linhas = r.text.strip().split('\n')
         dados = []
         for l in linhas:
             c = [col.strip() for col in l.split(';')]
-            if len(c) >= 4 and "Título" not in c:
-                dados.append({"titulo": c[0], "vencimento": c[1], "taxa": c[2], "preco": c[3]})
+            if len(c) >= 4 and "Título" not in l:
+                dados.append({"t": c[0], "v": c[1], "tx": c[2], "p": c[3]})
         return dados
     except: return []
 
-def buscar_dolar_hoje():
-    # Usando AwesomeAPI para evitar bloqueio de servidor
+def get_dolar():
     try:
-        res = requests.get("https://economia.awesomeapi.com.br", timeout=10)
-        if res.status_code == 200:
-            dados = res.json()['USDBRL']
-            return [{"data": dados['create_date'], "compra": dados['bid'], "venda": dados['ask']}]
-        return []
-    except: return []
+        r = requests.get("https://economia.awesomeapi.com.br", timeout=10)
+        d = r.json()['USDBRL']
+        return {"venda": d['ask'], "data": d['create_date']}
+    except: return None
 
 @app.route('/')
-def index():
-    dados_t = buscar_tesouro()
-    dados_d = buscar_dolar_hoje()
+def home():
+    t_dados = get_tesouro()
+    d_dados = get_dolar()
     
-    linhas_t = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
+    linhas_t = "".join([f"<tr><td>{x['t']}</td><td>{x['v']}</td><td>{x['tx']}</td><td class='preco'>{x['p']}</td></tr>" for x in t_dados])
     
-    linhas_d = ""
-    for d in dados_d:
-        linhas_d += f"<tr><td>{d['data']}</td><td>R$ {float(d['compra']):.4f}</td><td>R$ {float(d['venda']):.4f}</td></tr>"
+    dolar_html = f"<h3>Dólar Comercial: R$ {float(d_dados['venda']):.4f}</h3><p>Atualizado em: {d_dados['data']}</p>" if d_dados else "Dólar indisponível"
 
     return render_template_string(f"""
     <!DOCTYPE html>
-    <html lang="pt-br">
-    <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
+    <html>
+    <head><meta charset="UTF-8"><title>Financeiro</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
             <h1>Cotações Financeiras</h1>
-            <div class="nav-tabs">
-                <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
-                <button class="tab-button" onclick="switchTab('dolar')">Dólar Comercial</button>
+            <div class="nav">
+                <button onclick="tab('t')" id="bt">Tesouro</button>
+                <button onclick="tab('d')" id="bd">Dólar</button>
             </div>
-            <div id="tesouro" class="content active">
+            <div id="t" class="content active-content">
                 <table>
-                    <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço Resgate</th></tr></thead>
-                    <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis.</td></tr>'}</tbody>
+                    <thead><tr><th>Título</th><th>Vencimento</th><th>Taxa</th><th>Preço</th></tr></thead>
+                    <tbody>{linhas_t or '<tr><td colspan="4">Erro ao carregar dados.</td></tr>'}</tbody>
                 </table>
             </div>
-            <div id="dolar" class="content">
-                <div class="scroll-table">
-                    <table>
-                        <thead><tr><th>Data/Hora Atualização</th><th>Compra</th><th>Venda</th></tr></thead>
-                        <tbody>{linhas_d or '<tr><td colspan="3">Dados do Dólar indisponíveis.</td></tr>'}</tbody>
-                    </table>
+            <div id="d" class="content">
+                <div style="text-align:center; padding: 30px; background: #f9f9f9; border-radius: 10px;">
+                    {dolar_html}
                 </div>
             </div>
         </div>
         <script>
-            function switchTab(id) {{
-                document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-                document.getElementById(id).classList.add('active');
-                event.currentTarget.classList.add('active');
+            function tab(id) {{
+                document.getElementById('t').style.display = id === 't' ? 'block' : 'none';
+                document.getElementById('d').style.display = id === 'd' ? 'block' : 'none';
+                document.getElementById('bt').className = id === 't' ? 'active' : '';
+                document.getElementById('bd').className = id === 'd' ? 'active' : '';
             }}
+            tab('t');
         </script>
     </body>
     </html>
-    """))
+    """)
 
 if __name__ == '__main__':
-    # Esta parte é crucial para Fly.io e Koyeb
+    # Configuração vital para evitar Erro de Porta no Fly/Koyeb/Render
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
