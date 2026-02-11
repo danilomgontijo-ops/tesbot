@@ -26,30 +26,44 @@ ESTILO_CSS = """
 """
 
 def buscar_tesouro():
-    url = "https://raw.githubusercontent.com/ghostnetrn/bot-tesouro-direto/refs/heads/main/rendimento_resgatar.csv"
+    url = "https://raw.githubusercontent.com"
     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
-        if res.status_code != 200: return []
+        if res.status_code != 200:
+            return []
         linhas = res.text.strip().split('\n')
         dados = []
         for l in linhas:
             c = [col.strip() for col in l.split(';')]
-            if len(c) >= 4 and "Título" not in c:
-                dados.append({"titulo": c[0], "vencimento": c[1], "taxa": c[2], "preco": c[3]})
+            if len(c) >= 4 and "Título" not in c[0]:
+                dados.append({
+                    "titulo": c[0],
+                    "vencimento": c[3],
+                    "taxa": c[1],
+                    "preco": c[2]
+                })
         return dados
-    except: return []
+    except:
+        return []
 
 def buscar_historico_ptax():
     hoje = datetime.now()
     inicio = hoje - timedelta(days=365)
+    data_inicio = inicio.strftime('%m-%d-%Y')
+    data_fim = hoje.strftime('%m-%d-%Y')
+    
     url = (f"https://olinda.bcb.gov.br"
            f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{inicio.strftime('%m-%d-%Y')}'&@dataFinalCotacao='{hoje.strftime('%m-%d-%Y')}'&$format=json&$orderby=dataHoraCotacao desc")
+           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
+    
     try:
         res = requests.get(url, timeout=15)
-        return res.json().get('value', []) if res.status_code == 200 else []
-    except: return []
+        if res.status_code == 200:
+            return res.json().get('value', [])
+        return []
+    except:
+        return []
 
 @app.route('/')
 def index():
