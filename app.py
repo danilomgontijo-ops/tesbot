@@ -27,25 +27,18 @@ ESTILO_CSS = """
 
 def buscar_tesouro():
     url = "https://raw.githubusercontent.com"
-    try:
+     try:
         res = requests.get(url, timeout=10)
         res.encoding = 'utf-8'
-        if res.status_code != 200:
-            return []
+        if res.status_code != 200: return []
         linhas = res.text.strip().split('\n')
         dados = []
         for l in linhas:
             c = [col.strip() for col in l.split(';')]
-            if len(c) >= 4 and "Título" not in c[0]:
-                dados.append({
-                    "titulo": c[0],
-                    "vencimento": c[3],
-                    "taxa": c[1],
-                    "preco": c[2]
-                })
+            if len(c) >= 4 and "Título" not in c:
+                dados.append({"titulo": c[0], "vencimento": c[1], "taxa": c[2], "preco": c[3]})
         return dados
-    except:
-        return []
+    except: return []
 
 def buscar_historico_ptax():
     hoje = datetime.now()
