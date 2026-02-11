@@ -40,38 +40,26 @@ def buscar_tesouro():
         return dados
     except: return []
 
-def buscar_historico_ptax():
-    hoje = datetime.now()
-    inicio = hoje - timedelta(days=365)
-    data_inicio = inicio.strftime('%m-%d-%Y')
-    data_fim = hoje.strftime('%m-%d-%Y')
-    
-    url = (f"https://olinda.bcb.gov.br"
-           f"(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?"
-           f"@dataInicial='{data_inicio}'&@dataFinalCotacao='{data_fim}'&$format=json&$orderby=dataHoraCotacao desc")
-    
+def buscar_dolar_hoje():
+    # Usando AwesomeAPI para evitar bloqueio de servidor
     try:
-        res = requests.get(url, timeout=15)
+        res = requests.get("https://economia.awesomeapi.com.br", timeout=10)
         if res.status_code == 200:
-            return res.json().get('value', [])
+            dados = res.json()['USDBRL']
+            return [{"data": dados['create_date'], "compra": dados['bid'], "venda": dados['ask']}]
         return []
-    except:
-        return []
+    except: return []
 
 @app.route('/')
 def index():
     dados_t = buscar_tesouro()
-    dados_p = buscar_historico_ptax()
+    dados_d = buscar_dolar_hoje()
     
-    linhas_t = ""
-    for t in dados_t:
-        linhas_t += f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>"
+    linhas_t = "".join([f"<tr><td>{t['titulo']}</td><td>{t['vencimento']}</td><td>{t['taxa']}</td><td class='preco'>{t['preco']}</td></tr>" for t in dados_t])
     
-    linhas_p = ""
-    for p in dados_p:
-        data_iso = p['dataHoraCotacao'][:10]
-        data_br = datetime.strptime(data_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
-        linhas_p += f"<tr><td>{data_br}</td><td>R$ {p['cotacaoCompra']:.4f}</td><td>R$ {p['cotacaoVenda']:.4f}</td></tr>"
+    linhas_d = ""
+    for d in dados_d:
+        linhas_d += f"<tr><td>{d['data']}</td><td>R$ {float(d['compra']):.4f}</td><td>R$ {float(d['venda']):.4f}</td></tr>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -79,10 +67,10 @@ def index():
     <head><meta charset="UTF-8"><title>Portal Financeiro</title>{ESTILO_CSS}</head>
     <body>
         <div class="container">
-            <h1>Cotações e Histórico</h1>
+            <h1>Cotações Financeiras</h1>
             <div class="nav-tabs">
                 <button class="tab-button active" onclick="switchTab('tesouro')">Tesouro Direto</button>
-                <button class="tab-button" onclick="switchTab('ptax')">Histórico PTAX (12 Meses)</button>
+                <button class="tab-button" onclick="switchTab('dolar')">Dólar Comercial</button>
             </div>
             <div id="tesouro" class="content active">
                 <table>
@@ -90,11 +78,11 @@ def index():
                     <tbody>{linhas_t or '<tr><td colspan="4">Dados do Tesouro indisponíveis.</td></tr>'}</tbody>
                 </table>
             </div>
-            <div id="ptax" class="content">
+            <div id="dolar" class="content">
                 <div class="scroll-table">
                     <table>
-                        <thead><tr><th>Data</th><th>Compra</th><th>Venda</th></tr></thead>
-                        <tbody>{linhas_p or '<tr><td colspan="3">Dados do Banco Central indisponíveis.</td></tr>'}</tbody>
+                        <thead><tr><th>Data/Hora Atualização</th><th>Compra</th><th>Venda</th></tr></thead>
+                        <tbody>{linhas_d or '<tr><td colspan="3">Dados do Dólar indisponíveis.</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
@@ -109,7 +97,7 @@ def index():
         </script>
     </body>
     </html>
-    """)
+    """))
 
 if __name__ == '__main__':
     # Esta parte é crucial para Fly.io e Koyeb
